@@ -221,7 +221,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ];
 
         const responseStream = await ai.models.generateContentStream({
-            model: 'gemini-2.5-flash-preview-05-20',
+            model: 'gemini-2.5-flash',
             contents,
             config: {
                 systemInstruction: SYSTEM_INSTRUCTION,
@@ -245,8 +245,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.end();
     } catch (error: any) {
         console.error('Gemini API error:', error?.message || error);
+        console.error('Full error:', JSON.stringify(error, null, 2));
         if (!res.headersSent) {
-            res.status(500).json({ error: 'Gérard a débranché le modem. Réessayez plus tard.' });
+            res.status(500).json({
+                error: 'Gérard a débranché le modem. Réessayez plus tard.',
+                detail: process.env.NODE_ENV !== 'production' ? error?.message : undefined,
+            });
         } else {
             res.end();
         }
