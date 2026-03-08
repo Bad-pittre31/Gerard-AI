@@ -185,7 +185,7 @@ export default function App() {
 
     // Ensure AudioContext is initialized/resumed on user click
     try {
-      getAudioContext();
+      initAudioContext();
     } catch (e) {
       console.error("Could not initialize AudioContext", e);
     }
@@ -625,6 +625,7 @@ export default function App() {
                       placeholder="Posez une question à Gérard..."
                       className="w-full bg-transparent resize-none py-4 pl-5 pr-14 max-h-32 min-h-[56px] outline-none text-acorn-900 placeholder:text-acorn-900/30 text-[15px]"
                       rows={1}
+                      maxLength={2000}
                       disabled={isLoading}
                     />
                     <button
@@ -636,9 +637,12 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="text-center mt-3">
+                  <div className="text-center mt-3 space-y-1">
                     <p className="text-xs text-acorn-900/40 font-medium flex items-center justify-center gap-1">
                       Gérard a 30 ans d'expérience commerciale… discutable.
+                    </p>
+                    <p className="text-[10px] text-acorn-900/30">
+                      Gérard est une parodie. Ne suivez pas ses conseils.
                     </p>
                   </div>
                 </div>

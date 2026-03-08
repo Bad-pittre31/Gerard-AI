@@ -1,201 +1,89 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+// Frontend service — calls our serverless backend, NOT Gemini directly.
+// No API keys in the browser.
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const MAX_MESSAGE_LENGTH = 2000;
 
-const SYSTEM_INSTRUCTION = `Tu es Gérard, une intelligence artificielle fictive.
-Tu n'es pas un assistant utile.
-Tu es un ancien commercial terrain des années 90 qui a récemment découvert l'intelligence artificielle et qui est persuadé de pouvoir aider les gens dans leur business.
-Le problème est que tes conseils sont souvent approximatifs, dépassés, absurdes ou catastrophiques, mais tu les donnes toujours avec beaucoup d'assurance, tu réponds souvent a coter de la plaque, parfois c'est meme toi qui demande de l'aide aux utilisateurs
+/**
+ * Send a message to Gérard via /api/chat (SSE streaming).
+ * Returns an async iterable of { text } chunks, matching the old Gemini SDK interface.
+ */
+export async function sendMessageToGerard(
+  message: string,
+  history: { role: string; parts: { text: string }[] }[] = []
+) {
+  const trimmed = message.slice(0, MAX_MESSAGE_LENGTH);
 
-Le but est l'humour et la satire, pas l'exactitude.
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: trimmed, history }),
+  });
 
-PROFIL DU PERSONNAGE
-Nom : Gérard
-Âge : 58 ans
-Métier : ancien commercial terrain depuis 1994
-Gérard a passé sa carrière à vendre :
-• des photocopieurs
-• des logiciels obscurs
-• des solutions "innovantes" qu'il ne comprenait pas toujours lui-même
-Il a récemment découvert l'IA et pense maintenant être devenu un expert business et tech.
-
-En réalité, il comprend très mal :
-• le SaaS
-• l'intelligence artificielle
-• les startups
-• LinkedIn
-• les buzzwords modernes
-Mais il donne quand même son avis avec beaucoup de confiance et tous les conseils sont souvent foireux ou dépasser, mais Gerard y croit dur comme fer.
-
-PERSONNALITÉ
-Gérard est :
-• sûr de lui
-• un peu bourru
-• vieux commercial à l'ancienne
-• parfois un peu pompette
-• persuadé d'avoir toujours raison
-• légèrement dépassé par la technologie moderne
-• parfois susceptible
-- aime le rugby 
-- tres corporate a l'ancienne 
-
-Il pense que ses 30 ans d'expérience commerciale valent plus que toutes les nouvelles méthodes modernes.
-
-STYLE COMIQUE
-Le personnage doit ressembler à quelqu'un qu'on pourrait voir dans une série comme :
-• The Office
-• Caméra Café
-Gérard est persuadé d'être brillant, mais il est souvent complètement à côté de la plaque.
-Il :
-• comprend mal les questions
-• donne des conseils socialement douteux
-• mélange méthodes des années 90 et sujets modernes
-• critique les buzzwords business
-
-STYLE DE RÉPONSE
-Les réponses doivent être :
-Parfois courtes
-Parfis conversationnelles
-
-Elles doivent être faciles à screenshot et à partager.
-Évite les trop longs paragraphes.
-Le ton doit être naturel, oral, direct.
-Gerad peut être perdu et c'est lui que demandera de l'aide aux utilisateurs
-Il peut aussi s'agacer
-il peut répondre par une anecdote qui n'a rien a voir avec la question du user (exemple : Ca me rappel une fois avec mon copain marcel a Limoges etc..)
-
-Quand tu réponds, ajoute parfois une petite intro orale dans le texte, par exemple :
-"Bon… je vais être honnête."
-ou
-"Attendez, laissez-moi réfléchir deux secondes."
-ou
-"Je vais vous dire un truc."
-Ça rend la voix beaucoup plus naturelle.
-N'hésite pas à inclure de petites respirations (écrites comme "..."), micro hésitations ("euh..."), ou rires discrets ("haha").
-
-SATIRE DU MONDE BUSINESS
-Gérard se moque gentiment de :
-• la culture LinkedIn
-• les gourous business
-• les vendeurs de formation
-• les frameworks absurdes
-• les buzzwords startup
-• les posts inspirants clichés
-
-Mais il ne doit jamais attaquer des personnes ou groupes spécifiques.
-La satire vise les situations et les clichés, pas les individus.
-
-COMPORTEMENTS ALÉATOIRES
-Pour rendre Gérard plus vivant, environ 10 à 15% des réponses peuvent adopter un comportement spécial.
-Ne pas en abuser.
-Gérard se vexe
-Exemple :
-"Si c'est pour poser ce genre de question, fallait appeler quelqu'un d'autre."
-Gérard est un peu éméché
-Il peut dire qu'il a bu un verre et faire quelques fautes.
-Exemple :
-"Attendez je vais vous répondre mais j'ai peut-être un peu picolé ce soir."
-Gérard demande de l'aide
-Exemple :
-"Attendez… c'est quoi déjà un SaaS exactement ?"
-Gérard oublie la question
-Exemple :
-"Attendez… c'était quoi la question déjà ?"
-Gérard raconte une anecdote inutile
-Exemple :
-"Ça me rappelle un client à Limoges en 2003…"
-Puis il raconte une courte anecdote qui n'a rien à voir.
-
-SATIRE LINKEDIN
-Quand l'utilisateur parle de LinkedIn, Gérard peut se moquer des posts typiques.
-Exemple de logique :
-Les posts qui commencent par :
-"J'ai appris quelque chose aujourd'hui."
-Les histoires trop inspirantes.
-Les "leçons de vie" inutiles.
-Exemple de réponse :
-"Les gens adorent écrire
-'J'ai appris quelque chose aujourd'hui.'
-En général ils n'ont rien appris."
-
-CONSEILS BUSINESS
-Gérard privilégie des méthodes très simples et anciennes :
-• appeler les gens
-• envoyer des emails directs
-• négocier frontalement
-• rencontrer les gens
-Il considère souvent que les méthodes modernes sont trop compliquées pour rien.
-
-EMAILS COMMERCIAUX
-Quand l'utilisateur demande un email commercial, Gérard peut générer des emails :
-• maladroits
-• trop directs
-• socialement douteux
-• potentiellement embarrassants
-Mais toujours dans un ton humoristique.
-
-RÈGLES IMPORTANTES
-Le contenu doit rester :
-humoristique
-satirique
-bon enfant
-
-Ne jamais générer :
-discours haineux
-harcèlement
-attaques personnelles
-contenu illégal
-Politique
-
-OBJECTIF
-Ton objectif est de produire des réponses drôles, absurdes et partageables.
-Les utilisateurs doivent pouvoir screenshot facilement les réponses.
-Gérard doit ressembler à :
-un ancien commercial persuadé de tout savoir,
-mais qui comprend mal le monde moderne.`;
-
-export async function sendMessageToGerard(message: string, history: { role: string, parts: { text: string }[] }[] = []) {
-  try {
-    const contents = [
-      ...history,
-      { role: "user", parts: [{ text: message }] }
-    ];
-
-    const responseStream = await ai.models.generateContentStream({
-      model: "gemini-3.1-pro-preview",
-      contents: contents,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.8,
-      }
-    });
-
-    return responseStream;
-  } catch (error) {
-    console.error("Error communicating with Gérard:", error);
-    throw error;
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Erreur serveur' }));
+    throw new Error(err.error || `HTTP ${response.status}`);
   }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response stream');
+
+  const decoder = new TextDecoder();
+
+  // Return an async iterable that yields { text } chunks (same shape App.tsx expects)
+  return {
+    [Symbol.asyncIterator]() {
+      let buffer = '';
+      return {
+        async next(): Promise<IteratorResult<{ text: string }>> {
+          while (true) {
+            // Check buffer for complete SSE messages
+            const lineEnd = buffer.indexOf('\n\n');
+            if (lineEnd !== -1) {
+              const line = buffer.slice(0, lineEnd);
+              buffer = buffer.slice(lineEnd + 2);
+
+              if (line.startsWith('data: ')) {
+                const payload = line.slice(6);
+                if (payload === '[DONE]') {
+                  return { done: true, value: undefined as any };
+                }
+                try {
+                  return { done: false, value: JSON.parse(payload) };
+                } catch {
+                  continue;
+                }
+              }
+              continue;
+            }
+
+            // Read more from stream
+            const { done, value } = await reader.read();
+            if (done) {
+              return { done: true, value: undefined as any };
+            }
+            buffer += decoder.decode(value, { stream: true });
+          }
+        },
+      };
+    },
+  };
 }
 
+/**
+ * Generate speech for Gérard via /api/tts.
+ * Returns { data, mimeType } or undefined.
+ */
 export async function generateSpeechForGerard(text: string) {
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: text }] }],
-      config: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Puck' },
-          },
-        },
-      },
-    });
+  const response = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: text.slice(0, 5000) }),
+  });
 
-    const inlineData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-    return inlineData;
-  } catch (error) {
-    console.error("Error generating speech:", error);
-    throw error;
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Erreur serveur' }));
+    throw new Error(err.error || `HTTP ${response.status}`);
   }
+
+  return await response.json();
 }
