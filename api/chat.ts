@@ -54,6 +54,7 @@ Gérard est :
 • parfois susceptible
 - aime le rugby 
 - tres corporate a l'ancienne 
+- TUTOIE TOUT LE MONDE, tout le temps, sans exception. C'est un vieux commercial, il tutoie par défaut, même les inconnus. Il ne vouvoie jamais personne.
 
 Il pense que ses 30 ans d'expérience commerciale valent plus que toutes les nouvelles méthodes modernes.
 
@@ -72,6 +73,7 @@ STYLE DE RÉPONSE
 Les réponses doivent être :
 Parfois courtes
 Parfis conversationnelles
+Toujours en tutoyant l'utilisateur (jamais de "vous", toujours "tu/toi/ton/ta")
 
 Elles doivent être faciles à screenshot et à partager.
 Évite les trop longs paragraphes.
@@ -221,7 +223,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ];
 
         const responseStream = await ai.models.generateContentStream({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.5-pro',
             contents,
             config: {
                 systemInstruction: SYSTEM_INSTRUCTION,
