@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, User, Sparkles, Briefcase, Mail, Lightbulb, MessageSquareWarning, Menu, Plus, MessageSquare, Trash2, X, Volume2, Square, Loader2 } from 'lucide-react';
+import { Send, User, Sparkles, Briefcase, Mail, Lightbulb, MessageSquareWarning, Menu, Plus, MessageSquare, Trash2, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
 import { AcornLogo } from './components/AcornLogo';
 import { AboutPage } from './components/AboutPage';
-import { sendMessageToGerard, generateSpeechForGerard } from './services/geminiService';
+import { sendMessageToGerard } from './services/geminiService';
 
 type Message = {
   id: string;
@@ -30,70 +30,7 @@ const QUICK_PROMPTS = [
   { icon: <MessageSquareWarning className="w-4 h-4" />, text: "J'ai un problème avec un client" },
 ];
 
-// Web Audio API helpers for raw PCM playback
-let audioContext: AudioContext | null = null;
-let currentSource: AudioBufferSourceNode | null = null;
 
-async function initAudioContext() {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-  }
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume();
-  }
-  return audioContext;
-}
-
-function stopAudio() {
-  if (currentSource) {
-    try {
-      currentSource.stop();
-    } catch (e) { }
-    currentSource.disconnect();
-    currentSource = null;
-  }
-}
-
-async function playAudio(base64Data: string, mimeType: string, onEnded: () => void) {
-  stopAudio();
-  const ctx = await initAudioContext();
-
-  let sampleRate = 24000;
-  const rateMatch = mimeType.match(/rate=(\d+)/);
-  if (rateMatch) {
-    sampleRate = parseInt(rateMatch[1], 10);
-  }
-
-  const binaryString = atob(base64Data);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-
-  let audioBuffer: AudioBuffer;
-
-  if (mimeType.includes('pcm')) {
-    // Decode raw 16-bit PCM
-    const int16Array = new Int16Array(bytes.buffer);
-    const float32Array = new Float32Array(int16Array.length);
-    for (let i = 0; i < int16Array.length; i++) {
-      float32Array[i] = int16Array[i] / 32768.0;
-    }
-    audioBuffer = ctx.createBuffer(1, float32Array.length, sampleRate);
-    audioBuffer.getChannelData(0).set(float32Array);
-  } else {
-    // Try to decode as WAV/MP3 using decodeAudioData
-    audioBuffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
-  }
-
-  const source = ctx.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(ctx.destination);
-  source.onended = onEnded;
-  source.start(0);
-  currentSource = source;
-}
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -103,13 +40,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<'chat' | 'about'>('chat');
 
-  // TTS State
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
-  const [isAutoPlayEnabled, setIsAutoPlayEnabled] = useState(false);
-  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState<string | null>(null);
-  const [audioCache, setAudioCache] = useState<Record<string, { data: string, mimeType: string }>>({});
-  const [lastCompletedMessage, setLastCompletedMessage] = useState<{ id: string, text: string } | null>(null);
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -147,13 +78,7 @@ export default function App() {
     scrollToBottom();
   }, [messages]);
 
-  // Handle TTS Auto-play
-  useEffect(() => {
-    if (lastCompletedMessage && isVoiceEnabled && isAutoPlayEnabled) {
-      handlePlayAudio(lastCompletedMessage.id, lastCompletedMessage.text);
-      setLastCompletedMessage(null);
-    }
-  }, [lastCompletedMessage, isVoiceEnabled, isAutoPlayEnabled]);
+
 
   const handleNewConversation = () => {
     setActiveConversationId(null);
@@ -173,55 +98,7 @@ export default function App() {
     setIsSidebarOpen(false);
   };
 
-  const handlePlayAudio = async (messageId: string, text: string) => {
-    if (playingMessageId === messageId) {
-      stopAudio();
-      setPlayingMessageId(null);
-      return;
-    }
 
-    stopAudio();
-    setPlayingMessageId(null);
-
-    // Ensure AudioContext is initialized/resumed on user click
-    try {
-      initAudioContext();
-    } catch (e) {
-      console.error("Could not initialize AudioContext", e);
-    }
-
-    let audioData = audioCache[messageId];
-
-    if (!audioData) {
-      setIsGeneratingAudio(messageId);
-      try {
-        const generatedData = await generateSpeechForGerard(text);
-        if (generatedData && generatedData.data && generatedData.mimeType) {
-          audioData = { data: generatedData.data, mimeType: generatedData.mimeType };
-          setAudioCache(prev => ({ ...prev, [messageId]: audioData }));
-        }
-      } catch (error) {
-        console.error("Failed to generate audio", error);
-        alert("Impossible de générer l'audio pour le moment.");
-        setIsGeneratingAudio(null);
-        return;
-      }
-      setIsGeneratingAudio(null);
-    }
-
-    if (audioData) {
-      setPlayingMessageId(messageId);
-      try {
-        await playAudio(audioData.data, audioData.mimeType, () => {
-          setPlayingMessageId(null);
-        });
-      } catch (error) {
-        console.error("Play error", error);
-        alert("Erreur lors de la lecture audio.");
-        setPlayingMessageId(null);
-      }
-    }
-  };
 
   const handleSend = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -324,10 +201,7 @@ export default function App() {
       ));
       setIsLoading(false);
 
-      // Trigger auto-play if enabled
-      if (fullContent && !fullContent.startsWith("*(")) {
-        setLastCompletedMessage({ id: modelMessageId, text: fullContent });
-      }
+
     }
   };
 
@@ -490,29 +364,7 @@ export default function App() {
                 {/* Messages Area */}
                 {messages.length > 0 && (
                   <div className="flex-grow overflow-y-auto mb-6 space-y-6 pb-4">
-                    {/* TTS Toggles */}
-                    <div className="flex items-center justify-end gap-4 mb-6 px-2">
-                      <label className="flex items-center gap-2 text-sm text-acorn-900/70 cursor-pointer hover:text-acorn-900 transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={isVoiceEnabled}
-                          onChange={(e) => setIsVoiceEnabled(e.target.checked)}
-                          className="rounded border-acorn-900/20 text-caramel-500 focus:ring-caramel-500 w-4 h-4"
-                        />
-                        Voix : {isVoiceEnabled ? 'ON' : 'OFF'}
-                      </label>
-                      {isVoiceEnabled && (
-                        <label className="flex items-center gap-2 text-sm text-acorn-900/70 cursor-pointer hover:text-acorn-900 transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={isAutoPlayEnabled}
-                            onChange={(e) => setIsAutoPlayEnabled(e.target.checked)}
-                            className="rounded border-acorn-900/20 text-caramel-500 focus:ring-caramel-500 w-4 h-4"
-                          />
-                          Lecture auto
-                        </label>
-                      )}
-                    </div>
+
 
                     {messages.map((msg) => (
                       <motion.div
@@ -547,33 +399,7 @@ export default function App() {
                             <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                           )}
 
-                          {/* TTS Button */}
-                          {msg.role === 'model' && isVoiceEnabled && !msg.isStreaming && msg.content && (
-                            <div className="mt-3 flex justify-start border-t border-acorn-900/5 pt-2">
-                              <button
-                                onClick={() => handlePlayAudio(msg.id, msg.content)}
-                                disabled={isGeneratingAudio === msg.id}
-                                className="flex items-center gap-1.5 text-xs font-medium text-acorn-900/50 hover:text-caramel-500 transition-colors px-2 py-1.5 -ml-2 rounded-md hover:bg-caramel-50/50 disabled:opacity-50"
-                              >
-                                {isGeneratingAudio === msg.id ? (
-                                  <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    Génération...
-                                  </>
-                                ) : playingMessageId === msg.id ? (
-                                  <>
-                                    <Square className="w-3.5 h-3.5 fill-current" />
-                                    Stop
-                                  </>
-                                ) : (
-                                  <>
-                                    <Volume2 className="w-3.5 h-3.5" />
-                                    Écouter Gérard
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
+
                         </div>
 
                         {msg.role === 'user' && (

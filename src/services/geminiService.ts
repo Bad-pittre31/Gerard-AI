@@ -69,21 +69,3 @@ export async function sendMessageToGerard(
   };
 }
 
-/**
- * Generate speech for Gérard via /api/tts.
- * Returns { data, mimeType } or undefined.
- */
-export async function generateSpeechForGerard(text: string) {
-  const response = await fetch('/api/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: text.slice(0, 5000) }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Erreur serveur' }));
-    throw new Error(err.error || `HTTP ${response.status}`);
-  }
-
-  return await response.json();
-}
